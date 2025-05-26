@@ -1,18 +1,22 @@
 package ventamicroservicio.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import ventamicroservicio.Model.ProductoSolicitud;
 import ventamicroservicio.Model.ProductoVenta;
 import ventamicroservicio.Model.Venta;
-import ventamicroservicio.dto.ProductoDTO;
+import ventamicroservicio.dto.ProductoSucursalDTO;
 import ventamicroservicio.repository.VentaRepository;
 
 @Service
 public class VentaServiceImpl implements VentaService {
+    
+
 
     @Autowired
     private VentaRepository ventaRepository;
@@ -20,9 +24,72 @@ public class VentaServiceImpl implements VentaService {
     @Autowired
     private RestTemplate restTemplate;
 
-    private final String PRODUCTO_URL = "http://localhost:8087/api/v1/productos/";
+    private final String SUCURSAL_URL = "http://localhost:8067/api/v1/productoSucursal/";
+   
 
-    @Override
+ @Override
+ public Venta crearVenta(int idSucursal, List<ProductoSolicitud> productosSolicitados) {
+    double totalBase = 0;
+    List<ProductoVenta> productosVenta = new ArrayList<>();
+
+    for (ProductoSolicitud solicitud : productosSolicitados) {
+        int idProducto = solicitud.getIdProducto();
+        int cantidadSolicitada = solicitud.getCantidad();
+
+        // Construir la URL con query params
+        String url = SUCURSAL_URL + "buscar?idProducto=" + idProducto + "&idSucursal=" + idSucursal;
+
+        // Llamada al microservicio → obtener array
+        ProductoSucursalDTO[] productosArray = restTemplate.getForObject(url, ProductoSucursalDTO[].class);
+
+        if (productosArray == null || productosArray.length == 0) {
+            throw new RuntimeException("Producto ID " + idProducto + " no encontrado en sucursal ID " + idSucursal);
+        }
+
+        // Usar el primer resultado (ajusta si necesitas usar varios)
+        ProductoSucursalDTO productoSucursal = productosArray[0];
+
+        // Validar stock
+        if (productoSucursal.getCantidad() < cantidadSolicitada) {
+            throw new RuntimeException("Stock insuficiente para el producto ID " + idProducto + " en sucursal ID " + idSucursal);
+        }
+
+        // Calcular precios
+        double precioUnitario = productoSucursal.getPrecio_unitario();
+        double totalProducto = precioUnitario * cantidadSolicitada;
+
+        // Crear detalle de producto venta
+        ProductoVenta productoVenta = new ProductoVenta();
+        productoVenta.setIdProducto(idProducto);
+        productoVenta.setCantidad(cantidadSolicitada);
+        productoVenta.setPrecioUnitario(precioUnitario);
+        productoVenta.setTotalProducto(totalProducto);
+
+        productosVenta.add(productoVenta);
+        totalBase += totalProducto;
+    }
+
+    // Crear objeto venta final
+    Venta venta = new Venta();
+    venta.setIdSucursal(idSucursal);
+    venta.setProductos(productosVenta);
+    venta.setPrecioBase(totalBase);
+
+    // Si aplica, calcula descuentos e IVA
+    double descuento = (venta.getDescuento() != null) ? totalBase * venta.getDescuento() : 0;
+    double neto = totalBase - descuento;
+    double iva = (venta.getIvaPorcentaje() != null) ? neto * (venta.getIvaPorcentaje() / 100.0) : 0;
+
+    venta.setTotalVenta(neto + iva);
+
+    // Guardar en base de datos
+    return ventaRepository.save(venta);
+}
+
+
+
+
+    /*@Override
     public Venta crearVenta(Venta venta) {
     double totalBase = 0;
 
@@ -79,7 +146,7 @@ public class VentaServiceImpl implements VentaService {
 
     // Guardar la venta con todos los productos
     return ventaRepository.save(venta);
-}
+}*/
 
 
     @Override
@@ -114,4 +181,12 @@ public class VentaServiceImpl implements VentaService {
     return ventaRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Venta no encontrada con ID: " + id));
    }
+
+
+    @Override
+    public Venta obtenerSucursalPorId(int idSucursal, int idProducto) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'obtenerSucursalPorId'");
+    }
+
 }
