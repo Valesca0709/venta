@@ -37,7 +37,6 @@ public class Venta {
     private Double ivaPorcentaje;
     private Double totalVenta;
     private Integer idSucursal; 
-    private Integer idProducto;
     // Mostrará una lista de productos
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference
