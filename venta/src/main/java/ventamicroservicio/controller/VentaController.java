@@ -58,7 +58,6 @@ public class VentaController {
 
         Venta venta = ventaService.obtenerSucursalPorId(idSucursal, idProducto);
         venta.setIdSucursal(idSucursal);
-        venta.setIdProducto(idProducto);
 
         return ResponseEntity.ok(venta);
     }
