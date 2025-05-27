@@ -1,6 +1,8 @@
 package ventamicroservicio.service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,8 +18,6 @@ import ventamicroservicio.repository.VentaRepository;
 @Service
 public class VentaServiceImpl implements VentaService {
     
-
-
     @Autowired
     private VentaRepository ventaRepository;
 
@@ -27,127 +27,58 @@ public class VentaServiceImpl implements VentaService {
     private final String SUCURSAL_URL = "http://localhost:8067/api/v1/productoSucursal/";
    
 
- @Override
- public Venta crearVenta(int idSucursal, List<ProductoSolicitud> productosSolicitados) {
-    double totalBase = 0;
-    List<ProductoVenta> productosVenta = new ArrayList<>();
+    @Override
+    public Venta crearVenta(int idSucursal, List<ProductoSolicitud> productosSolicitados) {
+        double totalBase = 0;
+        List<ProductoVenta> productosVenta = new ArrayList<>();
 
-    for (ProductoSolicitud solicitud : productosSolicitados) {
-        int idProducto = solicitud.getIdProducto();
-        int cantidadSolicitada = solicitud.getCantidad();
+        Venta venta = new Venta();
+        venta.setIdSucursal(idSucursal);
+        venta.setFechaVenta(new Date());
+        venta.setDescuento(0.0);
+        venta.setIvaPorcentaje(19.0);
 
-        // Construir la URL con query params
-        String url = SUCURSAL_URL + "buscar?idProducto=" + idProducto + "&idSucursal=" + idSucursal;
+        for (ProductoSolicitud solicitud : productosSolicitados) {
+            int idProducto = solicitud.getIdProducto();
+            int cantidadSolicitada = solicitud.getCantidad();
 
-        // Llamada al microservicio → obtener array
-        ProductoSucursalDTO[] productosArray = restTemplate.getForObject(url, ProductoSucursalDTO[].class);
+            String url = SUCURSAL_URL + "buscar?idProducto=" + idProducto + "&idSucursal=" + idSucursal;
+            ProductoSucursalDTO[] productosArray = restTemplate.getForObject(url, ProductoSucursalDTO[].class);
 
-        if (productosArray == null || productosArray.length == 0) {
-            throw new RuntimeException("Producto ID " + idProducto + " no encontrado en sucursal ID " + idSucursal);
-        }
-
-        // Usar el primer resultado (ajusta si necesitas usar varios)
-        ProductoSucursalDTO productoSucursal = productosArray[0];
-
-        // Validar stock
-        if (productoSucursal.getCantidad() < cantidadSolicitada) {
-            throw new RuntimeException("Stock insuficiente para el producto ID " + idProducto + " en sucursal ID " + idSucursal);
-        }
-
-        // Calcular precios
-        double precioUnitario = productoSucursal.getPrecio_unitario();
-        double totalProducto = precioUnitario * cantidadSolicitada;
-
-        // Crear detalle de producto venta
-        ProductoVenta productoVenta = new ProductoVenta();
-        productoVenta.setIdProducto(idProducto);
-        productoVenta.setCantidad(cantidadSolicitada);
-        productoVenta.setPrecioUnitario(precioUnitario);
-        productoVenta.setTotalProducto(totalProducto);
-
-        productosVenta.add(productoVenta);
-        totalBase += totalProducto;
-    }
-
-    // Crear objeto venta final
-    Venta venta = new Venta();
-    venta.setIdSucursal(idSucursal);
-    venta.setProductos(productosVenta);
-    venta.setPrecioBase(totalBase);
-
-    // Si aplica, calcula descuentos e IVA
-    double descuento = (venta.getDescuento() != null) ? totalBase * venta.getDescuento() : 0;
-    double neto = totalBase - descuento;
-    double iva = (venta.getIvaPorcentaje() != null) ? neto * (venta.getIvaPorcentaje() / 100.0) : 0;
-
-    venta.setTotalVenta(neto + iva);
-
-    // Guardar en base de datos
-    return ventaRepository.save(venta);
-}
-
-
-
-
-    /*@Override
-    public Venta crearVenta(Venta venta) {
-    double totalBase = 0;
-
-    for (ProductoVenta productoVenta : venta.getProductos()) {
-        productoVenta.setVenta(venta); // establecer relación bidireccional
-
-        // Obtener el ID del producto que se está vendiendo
-        int idProducto = productoVenta.getIdProducto();
-
-        // Construir la URL para consultar el microservicio de productos
-        String urlProducto = PRODUCTO_URL + idProducto;
-
-        try {
-            // Llamada al microservicio de producto
-            ProductoDTO producto = restTemplate.getForObject(urlProducto, ProductoDTO.class);
-
-            if (producto == null) {
-                throw new RuntimeException("Producto con ID " + idProducto + " no encontrado.");
+            if (productosArray == null || productosArray.length == 0) {
+                throw new RuntimeException("Producto ID " + idProducto + " no encontrado en sucursal ID " + idSucursal);
             }
 
-            // Validar stock
-            if (producto.getStock() < productoVenta.getCantidad()) {
-                throw new RuntimeException("Stock insuficiente para el producto ID " + idProducto);
+            ProductoSucursalDTO productoSucursal = productosArray[0];
+
+            if (productoSucursal.getCantidad() < cantidadSolicitada) {
+                throw new RuntimeException("Stock insuficiente para el producto ID " + idProducto + " en sucursal ID " + idSucursal);
             }
 
-            // Usar el precio real del producto desde el microservicio
-            double precio = producto.getPrecioUnitario();
-            productoVenta.setPrecioUnitario(precio);
+            double precioUnitario = productoSucursal.getPrecio_unitario();
+            double totalProducto = precioUnitario * cantidadSolicitada;
 
-            // Calcular total del producto
-            double totalProducto = precio * productoVenta.getCantidad();
+            ProductoVenta productoVenta = new ProductoVenta();
+            productoVenta.setIdProducto(idProducto);
+            productoVenta.setCantidad(cantidadSolicitada);
+            productoVenta.setPrecioUnitario(precioUnitario);
             productoVenta.setTotalProducto(totalProducto);
+            productoVenta.setVenta(venta); // relacion inversa, por que hay el producto vendido a la venta
 
-            // Acumular al total base
+            productosVenta.add(productoVenta);
             totalBase += totalProducto;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error al obtener el producto ID " + idProducto + ": " + e.getMessage());
         }
+
+        venta.setProductos(productosVenta);
+        venta.setPrecioBase(totalBase);
+
+        double descuento = totalBase * venta.getDescuento(); 
+        double neto = totalBase - descuento;
+        double iva = neto * (venta.getIvaPorcentaje() / 100.0); 
+        venta.setTotalVenta(neto + iva);
+
+        return ventaRepository.save(venta);
     }
-
-    // Asignar el precio base acumulado
-    venta.setPrecioBase(totalBase);
-
-    // Calcular descuento (si existe)
-    double descuento = (venta.getDescuento() != null) ? totalBase * venta.getDescuento() : 0;
-    double neto = totalBase - descuento;
-
-    // Calcular IVA (si existe)
-    double iva = (venta.getIvaPorcentaje() != null) ? neto * (venta.getIvaPorcentaje() / 100.0) : 0;
-
-    // Calcular total final
-    venta.setTotalVenta(neto + iva);
-
-    // Guardar la venta con todos los productos
-    return ventaRepository.save(venta);
-}*/
-
 
     @Override
     public List<Venta> listarVentas() {
@@ -182,11 +113,8 @@ public class VentaServiceImpl implements VentaService {
         .orElseThrow(() -> new RuntimeException("Venta no encontrada con ID: " + id));
    }
 
-
     @Override
     public Venta obtenerSucursalPorId(int idSucursal, int idProducto) {
-        // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'obtenerSucursalPorId'");
     }
-
 }
