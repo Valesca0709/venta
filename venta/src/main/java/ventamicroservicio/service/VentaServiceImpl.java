@@ -63,6 +63,8 @@ public class VentaServiceImpl implements VentaService {
             productoVenta.setCantidad(cantidadSolicitada);
             productoVenta.setPrecioUnitario(precioUnitario);
             productoVenta.setTotalProducto(totalProducto);
+            productoVenta.setFechaProducto(new Date());
+
             productoVenta.setVenta(venta); // relacion inversa, por que hay el producto vendido a la venta
 
             productosVenta.add(productoVenta);
